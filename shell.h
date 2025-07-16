@@ -35,6 +35,14 @@ void cmd_ps(int argc, char **argv);
 void cmd_mem(int argc, char **argv);
 void cmd_tasks(int argc, char **argv);
 void cmd_reboot(int argc, char **argv);
+void cmd_heap(int argc, char **argv);
+void cmd_leaks(int argc, char **argv);
+void cmd_defrag(int argc, char **argv);
+void cmd_heapmap(int argc, char **argv);
+void cmd_fsstat(int argc, char **argv);
+
+/* Helper functions */
+void cat_output_char(char c);
 
 /* Variables globales */
 extern char shell_buffer[SHELL_BUFFER_SIZE];
