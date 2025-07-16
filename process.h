@@ -40,6 +40,7 @@ struct process {
 
 /* Número máximo de procesos */
 #define MAX_PROCESSES 32
+#define MAX_PROC MAX_PROCESSES
 
 /* Variables globales */
 #ifdef __PLIST__
