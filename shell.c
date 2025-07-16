@@ -191,13 +191,7 @@ void cmd_ls(int argc, char **argv) {
     fs_list_files();
 }
 
-/* Helper function for streaming output */
-void cat_output_char(char c) {
-    if (c == '\0') return;
-    putcar(c);
-}
-
-/* Optimized cat command using streaming */
+/* Fixed cat command using traditional approach */
 void cmd_cat(int argc, char **argv) {
     if (argc < 2) {
         print("Usage: cat <filename>\n");
@@ -217,18 +211,30 @@ void cmd_cat(int argc, char **argv) {
         open_files[fd].position = 0;
     }
     
+    // Get file size
+    struct file_entry *file = fs_find_file(argv[1]);
+    if (!file) {
+        print("File not found: ");
+        print(argv[1]);
+        print("\n");
+        fs_close_file(fd);
+        return;
+    }
+    
     print("Contents of ");
     print(argv[1]);
     print(":\n");
     print("----------------------------------------\n");
     
-    // Use streaming read to minimize memory usage
+    // Read file in small chunks to minimize memory usage
+    char buffer[256];  // Small buffer on stack
     int bytes_read;
+    
     do {
-        bytes_read = fs_stream_read(fd, cat_output_char, 1024);
-        if (bytes_read < 0) {
-            print("\nError reading file\n");
-            break;
+        bytes_read = fs_read_file(fd, buffer, sizeof(buffer) - 1);
+        if (bytes_read > 0) {
+            buffer[bytes_read] = '\0';  // Null terminate
+            print(buffer);
         }
     } while (bytes_read > 0);
     
@@ -342,6 +348,10 @@ void cmd_exec(int argc, char **argv) {
         return;
     }
     
+    print("Heap status before exec:\n");
+    print_heap_status();
+    print("\n");
+    
     elf_execute(argv[1]);
 }
 
@@ -408,7 +418,7 @@ void cmd_fsstat(int argc, char **argv) {
     fs_print_stats();
 }
 
-/* Comando: tasks */
+/* Fixed tasks command with better error handling */
 void cmd_tasks(int argc, char **argv) {
     if (n_proc > 0) {
         print("Background tasks are already running\n");
@@ -416,16 +426,35 @@ void cmd_tasks(int argc, char **argv) {
     }
     
     print("Starting background demo tasks...\n");
+    print("Warning: This feature is experimental\n");
     
-    /* Cargar múltiples tareas */
-    load_task((u32*)0x100000, (u32*)&task1, 0x2000);
-    load_task((u32*)0x200000, (u32*)&task2, 0x2000);
-    load_task((u32*)0x300000, (u32*)&task3, 0x2000);
+    // Check heap before starting tasks
+    print("Heap status before tasks:\n");
+    print_heap_status();
+    
+    // Try to load tasks one by one with error checking
+    print("Loading task 1...\n");
+    if (load_task((u32*)0x100000, (u32*)&task1, 0x2000) < 0) {
+        print("Failed to load task 1\n");
+        return;
+    }
+    
+    print("Loading task 2...\n");
+    if (load_task((u32*)0x200000, (u32*)&task2, 0x2000) < 0) {
+        print("Failed to load task 2\n");
+        return;
+    }
+    
+    print("Loading task 3...\n");
+    if (load_task((u32*)0x300000, (u32*)&task3, 0x2000) < 0) {
+        print("Failed to load task 3\n");
+        return;
+    }
     
     print("Background tasks loaded: ");
     print_dec(n_proc);
     print("\n");
-    print("Note: Tasks will run in background and display output\n");
+    print("Note: If system becomes unstable, use reboot command\n");
 }
 
 /* Comando: reboot */

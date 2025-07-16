@@ -8,11 +8,20 @@
 struct tss default_tss;
 
 /*
+ * Safer task implementation with better memory management
+ */
+
+/*
  * Tarea de usuario 1
  */
 void task1(void)
 {
-    char *msg = (char*)0x40000100;
+    // Use safer memory allocation
+    char *msg = (char *)kmalloc(16);
+    if (!msg) {
+        return;  // Failed to allocate memory
+    }
+    
     int i = 0;
     
     msg[0] = 'T';
@@ -24,19 +33,26 @@ void task1(void)
     msg[6] = ' ';
     msg[7] = '0';
     msg[8] = '\n';
-    msg[9] = 0;
+    msg[9] = '\0';
     
-    while(1) {
-        /* Mostrar mensaje */
-        asm("mov %0, %%ebx; mov $0x01, %%eax; int $0x30" :: "m" (msg));
+    // Limit iterations to prevent infinite loops
+    for (int iterations = 0; iterations < 100; iterations++) {
+        /* Mostrar mensaje usando print directamente */
+        print("TASK1: ");
+        print_dec(i);
+        print("\n");
         
         /* Incrementar contador */
         i++;
-        msg[7] = '0' + (i % 10);
         
         /* Pequeño delay */
-        for (int j = 0; j < 100000; j++);
+        for (int j = 0; j < 10000; j++) {
+            asm("nop");
+        }
     }
+    
+    kfree(msg);
+    print("TASK1: Completed\n");
 }
 
 /*
@@ -44,7 +60,12 @@ void task1(void)
  */
 void task2(void)
 {
-    char *msg = (char*)0x40000100;
+    // Use safer memory allocation
+    char *msg = (char *)kmalloc(16);
+    if (!msg) {
+        return;  // Failed to allocate memory
+    }
+    
     int i = 0;
     
     msg[0] = 'T';
@@ -56,19 +77,26 @@ void task2(void)
     msg[6] = ' ';
     msg[7] = 'A';
     msg[8] = '\n';
-    msg[9] = 0;
+    msg[9] = '\0';
     
-    while(1) {
-        /* Mostrar mensaje */
-        asm("mov %0, %%ebx; mov $0x01, %%eax; int $0x30" :: "m" (msg));
+    // Limit iterations to prevent infinite loops
+    for (int iterations = 0; iterations < 100; iterations++) {
+        /* Mostrar mensaje usando print directamente */
+        print("TASK2: ");
+        print_dec(i);
+        print("\n");
         
         /* Incrementar contador */
         i++;
-        msg[7] = 'A' + (i % 26);
         
         /* Pequeño delay */
-        for (int j = 0; j < 150000; j++);
+        for (int j = 0; j < 15000; j++) {
+            asm("nop");
+        }
     }
+    
+    kfree(msg);
+    print("TASK2: Completed\n");
 }
 
 /*
@@ -76,7 +104,12 @@ void task2(void)
  */
 void task3(void)
 {
-    char *msg = (char*)0x40000100;
+    // Use safer memory allocation
+    char *msg = (char *)kmalloc(16);
+    if (!msg) {
+        return;  // Failed to allocate memory
+    }
+    
     int i = 0;
     
     msg[0] = 'T';
@@ -88,23 +121,26 @@ void task3(void)
     msg[6] = ' ';
     msg[7] = '*';
     msg[8] = '\n';
-    msg[9] = 0;
+    msg[9] = '\0';
     
-    while(1) {
-        /* Mostrar mensaje */
-        asm("mov %0, %%ebx; mov $0x01, %%eax; int $0x30" :: "m" (msg));
+    // Limit iterations to prevent infinite loops
+    for (int iterations = 0; iterations < 100; iterations++) {
+        /* Mostrar mensaje usando print directamente */
+        print("TASK3: ");
+        print_dec(i);
+        print("\n");
         
         /* Incrementar contador */
         i++;
-        if (i % 2 == 0) {
-            msg[7] = '*';
-        } else {
-            msg[7] = '#';
-        }
         
         /* Pequeño delay */
-        for (int j = 0; j < 200000; j++);
+        for (int j = 0; j < 20000; j++) {
+            asm("nop");
+        }
     }
+    
+    kfree(msg);
+    print("TASK3: Completed\n");
 }
 
 /*

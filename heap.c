@@ -67,17 +67,26 @@ static struct heap_block *find_prev_block(struct heap_block *block) {
     return curr;
 }
 
-// Improved heap validation
+// Improved heap validation with better error messages
 static int validate_heap(void) {
     struct heap_block *curr = heap_start;
     u32 total_counted = 0;
+    
+    if (!curr) {
+        print("heap   : ERROR - Heap start is NULL\n");
+        return 0;
+    }
     
     while (curr) {
         // Check magic number
         if (curr->magic != HEAP_MAGIC) {
             print("heap   : ERROR - Invalid magic in block at 0x");
             print_hex((u32)curr);
-            print("\n");
+            print(" (expected 0x");
+            print_hex(HEAP_MAGIC);
+            print(", got 0x");
+            print_hex(curr->magic);
+            print(")\n");
             return 0;
         }
         
@@ -85,7 +94,19 @@ static int validate_heap(void) {
         if (curr->size & 3) {
             print("heap   : ERROR - Unaligned size in block at 0x");
             print_hex((u32)curr);
-            print("\n");
+            print(" (size=");
+            print_dec(curr->size);
+            print(")\n");
+            return 0;
+        }
+        
+        // Check size is reasonable
+        if (curr->size == 0 || curr->size > HEAP_MAX_SIZE) {
+            print("heap   : ERROR - Invalid size in block at 0x");
+            print_hex((u32)curr);
+            print(" (size=");
+            print_dec(curr->size);
+            print(")\n");
             return 0;
         }
         
@@ -93,7 +114,9 @@ static int validate_heap(void) {
         
         // Check for infinite loops
         if (total_counted > HEAP_MAX_SIZE) {
-            print("heap   : ERROR - Heap corruption detected\n");
+            print("heap   : ERROR - Heap corruption detected (total_counted=");
+            print_dec(total_counted);
+            print(")\n");
             return 0;
         }
         
@@ -124,6 +147,19 @@ static void coalesce_blocks(struct heap_block *block) {
 void *kmalloc_debug(u32 size, const char *file, int line) {
     struct heap_block *curr, *prev = 0;
     u32 total_size;
+    
+    // Basic parameter validation
+    if (size == 0) {
+        print("heap   : ERROR - Requested size is 0\n");
+        return 0;
+    }
+    
+    if (size > HEAP_MAX_SIZE) {
+        print("heap   : ERROR - Requested size too large: ");
+        print_dec(size);
+        print("\n");
+        return 0;
+    }
     
     // Validate heap before allocation
     if (!validate_heap()) {
@@ -197,6 +233,16 @@ void kfree(void *ptr) {
     
     struct heap_block *block = (struct heap_block *)((u32)ptr - sizeof(struct heap_block));
     
+    // Validate block before freeing
+    if ((u32)block < HEAP_START || (u32)block >= HEAP_START + HEAP_MAX_SIZE) {
+        print("heap   : ERROR - Invalid free address 0x");
+        print_hex((u32)ptr);
+        print(" (block at 0x");
+        print_hex((u32)block);
+        print(")\n");
+        return;
+    }
+    
     if (block->magic != HEAP_MAGIC) {
         print("heap   : ERROR - Invalid free! Magic: 0x");
         print_hex(block->magic);
@@ -259,13 +305,21 @@ void print_heap_status(void) {
     print("Used Size     : ");
     print_dec(heap_statistics.used_size);
     print(" bytes (");
-    print_dec((heap_statistics.used_size * 100) / heap_statistics.total_size);
+    if (heap_statistics.total_size > 0) {
+        print_dec((heap_statistics.used_size * 100) / heap_statistics.total_size);
+    } else {
+        print("0");
+    }
     print("%)\n");
     
     print("Free Size     : ");
     print_dec(heap_statistics.free_size);
     print(" bytes (");
-    print_dec((heap_statistics.free_size * 100) / heap_statistics.total_size);
+    if (heap_statistics.total_size > 0) {
+        print_dec((heap_statistics.free_size * 100) / heap_statistics.total_size);
+    } else {
+        print("0");
+    }
     print("%)\n");
     
     print("Peak Usage    : ");
