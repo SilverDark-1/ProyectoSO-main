@@ -27,7 +27,12 @@ struct command shell_commands[] = {
     {"ps", cmd_ps, "Show running processes"},
     {"mem", cmd_mem, "Show memory information"},
     {"tasks", cmd_tasks, "Start background demo tasks"},
-    {"reboot", cmd_reboot, "Restart the system"}
+    {"reboot", cmd_reboot, "Restart the system"},
+    {"heap", cmd_heap, "Show heap status and statistics"},
+    {"leaks", cmd_leaks, "Check for memory leaks"},
+    {"defrag", cmd_defrag, "Defragment the heap"},
+    {"heapmap", cmd_heapmap, "Show detailed heap map"},
+    {"fsstat", cmd_fsstat, "Show file system statistics"}
 };
 
 int shell_command_count = sizeof(shell_commands) / sizeof(struct command);
