@@ -364,6 +364,7 @@ void cmd_ps(int argc, char **argv) {
 /* Comando: mem */
 void cmd_mem(int argc, char **argv) {
     print("Memory information:\n");
+    print("===================\n");
     print("Heap start: 0x");
     print_hex(HEAP_START);
     print("\n");
@@ -371,8 +372,40 @@ void cmd_mem(int argc, char **argv) {
     print_hex(PAGE_HEAP_START);
     print("\n");
     
-    // Mostrar algunos datos del heap
-    print("Heap status: Active\n");
+    // Show detailed heap statistics
+    print_heap_status();
+}
+
+/* Comando: heap - Show heap status and statistics */
+void cmd_heap(int argc, char **argv) {
+    print_heap_status();
+}
+
+/* Comando: leaks - Check for memory leaks */
+void cmd_leaks(int argc, char **argv) {
+    check_memory_leaks();
+}
+
+/* Comando: defrag - Defragment the heap */
+void cmd_defrag(int argc, char **argv) {
+    print("Current heap status:\n");
+    print_heap_status();
+    print("\n");
+    
+    defragment_heap();
+    
+    print("\nHeap status after defragmentation:\n");
+    print_heap_status();
+}
+
+/* Comando: heapmap - Show detailed heap map */
+void cmd_heapmap(int argc, char **argv) {
+    print_heap_map();
+}
+
+/* Comando: fsstat - Show file system statistics */
+void cmd_fsstat(int argc, char **argv) {
+    fs_print_stats();
 }
 
 /* Comando: tasks */
