@@ -54,7 +54,7 @@ extern int n_proc;
 #endif
 
 /* Funciones */
-void load_task(u32 *code_phys_addr, u32 *fn, unsigned int code_size);
+int load_task(u32 *code_phys_addr, u32 *fn, unsigned int code_size);
 void schedule(void);
 void switch_to_task(int n, int mode);
 u32 *pd_create(u32 *code_phys_addr, unsigned int code_size);
