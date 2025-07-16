@@ -191,7 +191,13 @@ void cmd_ls(int argc, char **argv) {
     fs_list_files();
 }
 
-/* Comando: cat */
+/* Helper function for streaming output */
+void cat_output_char(char c) {
+    if (c == '\0') return;
+    putcar(c);
+}
+
+/* Optimized cat command using streaming */
 void cmd_cat(int argc, char **argv) {
     if (argc < 2) {
         print("Usage: cat <filename>\n");
@@ -211,23 +217,22 @@ void cmd_cat(int argc, char **argv) {
         open_files[fd].position = 0;
     }
     
-    char *buffer = (char *)kmalloc(4096);
-    if (buffer == NULL) {
-        print("Cannot allocate memory\n");
-        fs_close_file(fd);
-        return;
-    }
+    print("Contents of ");
+    print(argv[1]);
+    print(":\n");
+    print("----------------------------------------\n");
     
-    int bytes_read = fs_read_file(fd, buffer, 4095);
-    if (bytes_read > 0) {
-        buffer[bytes_read] = '\0';
-        print(buffer);
-        print("\n");
-    } else {
-        print("File is empty or cannot read file\n");
-    }
+    // Use streaming read to minimize memory usage
+    int bytes_read;
+    do {
+        bytes_read = fs_stream_read(fd, cat_output_char, 1024);
+        if (bytes_read < 0) {
+            print("\nError reading file\n");
+            break;
+        }
+    } while (bytes_read > 0);
     
-    kfree(buffer);
+    print("\n----------------------------------------\n");
     fs_close_file(fd);
 }
 
