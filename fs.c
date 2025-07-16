@@ -9,6 +9,10 @@ struct directory root_dir;
 struct file_descriptor open_files[MAX_FILES];
 u32 next_free_sector = 100;  // Empezar después del sector 100
 
+/* Shared sector buffer to reduce memory allocations */
+static char sector_buffer[SECTOR_SIZE];
+static u8 sector_buffer_in_use = 0;
+
 /* Inicializar el sistema de archivos */
 void fs_init(void) {
     int i;
@@ -23,6 +27,9 @@ void fs_init(void) {
         open_files[i].position = 0;
     }
     
+    // Initialize shared buffer
+    sector_buffer_in_use = 0;
+    
     // Intentar cargar el directorio raíz desde el disco
     if (ide_read_sectors(IDE_MASTER, 1, 1, &root_dir) != 0) {
         print("fs     : Creating new filesystem\n");
@@ -35,6 +42,25 @@ void fs_init(void) {
         ide_write_sectors(IDE_MASTER, 1, 1, &root_dir);
     } else {
         print("fs     : Loaded existing filesystem\n");
+    }
+}
+
+/* Helper function to get sector buffer */
+static char *get_sector_buffer(void) {
+    if (sector_buffer_in_use) {
+        // Fallback to dynamic allocation if buffer is in use
+        return (char *)kmalloc(SECTOR_SIZE);
+    }
+    sector_buffer_in_use = 1;
+    return sector_buffer;
+}
+
+/* Helper function to release sector buffer */
+static void release_sector_buffer(char *buffer) {
+    if (buffer == sector_buffer) {
+        sector_buffer_in_use = 0;
+    } else {
+        kfree(buffer);
     }
 }
 
@@ -128,7 +154,7 @@ void fs_close_file(int fd) {
     }
 }
 
-/* Leer de un archivo */
+/* Optimized read function that uses less memory */
 int fs_read_file(int fd, void *buffer, u32 size) {
     if (fd < 0 || fd >= MAX_FILES || !open_files[fd].used) {
         return -1;
@@ -146,25 +172,73 @@ int fs_read_file(int fd, void *buffer, u32 size) {
         size = file->size - file_desc->position;
     }
     
-    // Leer desde el disco
+    // Leer desde el disco usando shared buffer
     u32 sector = file->start_sector + (file_desc->position / SECTOR_SIZE);
     u32 offset = file_desc->position % SECTOR_SIZE;
     
-    char *temp_buffer = (char *)kmalloc(SECTOR_SIZE);
+    char *temp_buffer = get_sector_buffer();
     if (temp_buffer == NULL) {
+        print("fs     : ERROR - Cannot allocate sector buffer\n");
         return -1;
     }
     
     if (ide_read_sectors(IDE_MASTER, sector, 1, temp_buffer) != 0) {
-        kfree(temp_buffer);
+        release_sector_buffer(temp_buffer);
         return -1;
     }
     
     memcpy(buffer, temp_buffer + offset, size);
-    kfree(temp_buffer);
+    release_sector_buffer(temp_buffer);
     
     file_desc->position += size;
     return size;
+}
+
+/* Optimized streaming read function for large files */
+int fs_stream_read(int fd, void (*output_func)(char), u32 chunk_size) {
+    if (fd < 0 || fd >= MAX_FILES || !open_files[fd].used) {
+        return -1;
+    }
+    
+    struct file_descriptor *file_desc = &open_files[fd];
+    struct file_entry *file = file_desc->entry;
+    
+    if (file_desc->position >= file->size) {
+        return 0; // EOF
+    }
+    
+    char *temp_buffer = get_sector_buffer();
+    if (temp_buffer == NULL) {
+        print("fs     : ERROR - Cannot allocate sector buffer\n");
+        return -1;
+    }
+    
+    u32 total_read = 0;
+    u32 remaining = file->size - file_desc->position;
+    
+    while (remaining > 0 && total_read < chunk_size) {
+        u32 sector = file->start_sector + (file_desc->position / SECTOR_SIZE);
+        u32 offset = file_desc->position % SECTOR_SIZE;
+        
+        if (ide_read_sectors(IDE_MASTER, sector, 1, temp_buffer) != 0) {
+            release_sector_buffer(temp_buffer);
+            return -1;
+        }
+        
+        u32 bytes_in_sector = SECTOR_SIZE - offset;
+        u32 bytes_to_read = (remaining < bytes_in_sector) ? remaining : bytes_in_sector;
+        
+        for (u32 i = 0; i < bytes_to_read; i++) {
+            output_func(temp_buffer[offset + i]);
+        }
+        
+        file_desc->position += bytes_to_read;
+        total_read += bytes_to_read;
+        remaining -= bytes_to_read;
+    }
+    
+    release_sector_buffer(temp_buffer);
+    return total_read;
 }
 
 /* Escribir a un archivo */
@@ -181,18 +255,19 @@ int fs_write_file(int fd, const void *buffer, u32 size) {
         return -1; // Archivo demasiado pequeño
     }
     
-    // Escribir al disco
+    // Escribir al disco usando shared buffer
     u32 sector = file->start_sector + (file_desc->position / SECTOR_SIZE);
     u32 offset = file_desc->position % SECTOR_SIZE;
     
-    char *temp_buffer = (char *)kmalloc(SECTOR_SIZE);
+    char *temp_buffer = get_sector_buffer();
     if (temp_buffer == NULL) {
+        print("fs     : ERROR - Cannot allocate sector buffer\n");
         return -1;
     }
     
     // Leer el sector actual
     if (ide_read_sectors(IDE_MASTER, sector, 1, temp_buffer) != 0) {
-        kfree(temp_buffer);
+        release_sector_buffer(temp_buffer);
         return -1;
     }
     
@@ -201,11 +276,11 @@ int fs_write_file(int fd, const void *buffer, u32 size) {
     
     // Escribir de vuelta
     if (ide_write_sectors(IDE_MASTER, sector, 1, temp_buffer) != 0) {
-        kfree(temp_buffer);
+        release_sector_buffer(temp_buffer);
         return -1;
     }
     
-    kfree(temp_buffer);
+    release_sector_buffer(temp_buffer);
     file_desc->position += size;
     return size;
 }
@@ -277,4 +352,42 @@ struct file_entry *fs_find_file(const char *name) {
     }
     
     return NULL;
+}
+
+/* Get file system statistics */
+void fs_get_stats(struct fs_stats *stats) {
+    stats->total_files = 0;
+    stats->total_size = 0;
+    
+    for (int i = 0; i < MAX_FILES; i++) {
+        if (root_dir.files[i].used) {
+            stats->total_files++;
+            stats->total_size += root_dir.files[i].size;
+        }
+    }
+    
+    stats->free_files = MAX_FILES - stats->total_files;
+    stats->next_free_sector = next_free_sector;
+}
+
+/* Print file system statistics */
+void fs_print_stats(void) {
+    struct fs_stats stats;
+    fs_get_stats(&stats);
+    
+    print("File System Statistics:\n");
+    print("======================\n");
+    print("Total files: ");
+    print_dec(stats.total_files);
+    print("/");
+    print_dec(MAX_FILES);
+    print("\n");
+    
+    print("Total size: ");
+    print_dec(stats.total_size);
+    print(" bytes\n");
+    
+    print("Next free sector: ");
+    print_dec(stats.next_free_sector);
+    print("\n");
 }
