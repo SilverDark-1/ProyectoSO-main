@@ -8,11 +8,23 @@
 /*
  * Carga una tarea en memoria física y crea su contexto
  */
-void load_task(u32 *code_phys_addr, u32 *fn, unsigned int code_size)
+int load_task(u32 *code_phys_addr, u32 *fn, unsigned int code_size)
 {
     u32 page_base, pages, kstack_base;
     u32 *pd;
     int i;
+
+    // Check if we have room for more processes
+    if (n_proc >= MAX_PROC) {
+        print("process: ERROR: Maximum number of processes reached\n");
+        return -1;
+    }
+
+    // Validate parameters
+    if (!code_phys_addr || !fn || code_size == 0) {
+        print("process: ERROR: Invalid parameters\n");
+        return -1;
+    }
 
     print("process: loading task ");
     print_dec(n_proc);
@@ -38,14 +50,14 @@ void load_task(u32 *code_phys_addr, u32 *fn, unsigned int code_size)
     pd = pd_create(code_phys_addr, code_size);
     if (pd == (u32 *)-1) {
         print("process: ERROR: Cannot create page directory\n");
-        return;
+        return -1;
     }
 
     /* Asignar pila del kernel */
     kstack_base = (u32)get_page_frame();
     if (kstack_base == (u32)-1) {
         print("process: ERROR: Cannot allocate kernel stack\n");
-        return;
+        return -1;
     }
     p_list[n_proc].mem_info.code_start = (u32)code_phys_addr;
     p_list[n_proc].mem_info.code_end = (u32)code_phys_addr + code_size;
@@ -81,6 +93,7 @@ void load_task(u32 *code_phys_addr, u32 *fn, unsigned int code_size)
 
     n_proc++;
     print("process: task loaded successfully\n");
+    return 0;  // Success
 }
 
 /*
