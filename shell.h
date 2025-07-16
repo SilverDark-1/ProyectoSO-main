@@ -41,9 +41,6 @@ void cmd_defrag(int argc, char **argv);
 void cmd_heapmap(int argc, char **argv);
 void cmd_fsstat(int argc, char **argv);
 
-/* Helper functions */
-void cat_output_char(char c);
-
 /* Variables globales */
 extern char shell_buffer[SHELL_BUFFER_SIZE];
 extern int shell_buffer_pos;
